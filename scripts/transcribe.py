@@ -256,3 +256,114 @@ def save_progress(progress_path: Path, next_chunk_start_s: float, next_srt_index
         ),
         encoding="utf-8",
     )
+
+
+# ---------------------------------------------------------------------------
+# Orquestracao principal
+# ---------------------------------------------------------------------------
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Transcreve audio longo para .srt")
+    parser.add_argument("audio", help="Caminho do arquivo de audio/video de entrada")
+    parser.add_argument("--output", default=None, help="Caminho completo do .srt de saida")
+    parser.add_argument("--output-dir", default=None, help="Pasta de saida (default: ~/Documents/Transcricoes)")
+    parser.add_argument("--language", default="pt", help="Codigo do idioma (default: pt) ou 'auto' para deteccao automatica")
+    parser.add_argument("--model", default="auto", help="Tamanho do modelo Whisper, ou 'auto' para usar o padrao do motor detectado")
+    parser.add_argument("--chunk-seconds", type=float, default=300.0, help="Duracao alvo de cada chunk, em segundos (default: 300)")
+    parser.add_argument("--vocab", default=None, help="Lista de termos/nomes especificos do assunto do audio, separados por virgula, para melhorar a precisao (ex: \"lote, loteamento, imobiliaria, boleto\")")
+    return parser.parse_args()
+
+
+def default_output_path(audio_path: Path, output_dir: str | None) -> Path:
+    out_dir = Path(output_dir) if output_dir else Path.home() / "Documents" / "Transcricoes"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    return out_dir / (audio_path.stem + ".srt")
+
+
+def main():
+    args = parse_args()
+    audio_path = Path(args.audio).expanduser().resolve()
+    if not audio_path.exists():
+        print(f"ERRO: arquivo nao encontrado: {audio_path}", file=sys.stderr)
+        sys.exit(1)
+
+    engine_cfg = load_engine_config()
+    device = engine_cfg["device"]
+    compute_type = engine_cfg["compute_type"]
+    model_name = engine_cfg["default_model"] if args.model == "auto" else args.model
+    language = None if args.language == "auto" else args.language
+    initial_prompt = args.vocab.strip() if args.vocab else None
+
+    output_path = Path(args.output).expanduser().resolve() if args.output else default_output_path(audio_path, args.output_dir)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    progress_path = output_path.with_suffix(output_path.suffix + ".progress.json")
+
+    fingerprint = audio_fingerprint(audio_path)
+    params = params_fingerprint(args, device, compute_type, model_name)
+    progress = load_progress(progress_path)
+
+    if progress and progress.get("audio_fingerprint") == fingerprint and progress.get("params") == params:
+        chunk_start = progress["next_chunk_start_s"]
+        srt_index = progress["next_srt_index"]
+        srt_file = open(output_path, "a", encoding="utf-8")
+        print(f"Progresso anterior encontrado. Retomando a partir de {chunk_start:.1f}s.")
+    else:
+        chunk_start = 0.0
+        srt_index = 1
+        srt_file = open(output_path, "w", encoding="utf-8")
+
+    print(f"Motor: faster-whisper | device: {device} ({compute_type}) | modelo: {model_name} | idioma: {language or 'auto-detectar'}")
+    if initial_prompt:
+        print(f"Vocabulario de apoio: {initial_prompt}")
+    print("Carregando modelo (pode demorar na primeira vez)...")
+    try:
+        model = load_model(device, compute_type, model_name)
+    except Exception as e:
+        if device == "cuda":
+            print(f"AVISO: falha ao carregar modelo '{model_name}' na GPU ({e}). Tentando fallback para CPU...")
+            device, compute_type = "cpu", "int8"
+            model = load_model(device, compute_type, model_name)
+        else:
+            raise
+
+    duration = get_audio_duration_seconds(audio_path)
+    start_offset_s = get_stream_start_offset_seconds(audio_path)
+    if start_offset_s > 0.01:
+        print(
+            f"Aviso: o arquivo tem um deslocamento interno de {start_offset_s:.2f}s "
+            "(comum em trechos recortados de uma gravacao maior) — compensando automaticamente."
+        )
+    print(f"Duracao total: {duration / 60:.1f} min. Salvando em: {output_path}")
+
+    chunk_len = args.chunk_seconds
+    started_at = time.time()
+
+    while chunk_start < duration - 0.05:
+        target_end = min(chunk_start + chunk_len, duration)
+        actual_end = find_silence_cut(audio_path, target_end, duration, start_offset_s=start_offset_s) if target_end < duration else duration
+        if actual_end <= chunk_start:
+            actual_end = target_end
+
+        try:
+            audio_array = decode_window(audio_path, chunk_start, actual_end, start_offset_s=start_offset_s)
+            raw_entries = transcribe_chunk(model, audio_array, language, initial_prompt)
+            entries = [(chunk_start + s, chunk_start + e, t) for (s, e, t) in raw_entries]
+        except Exception as e:
+            print(f"AVISO: falha ao transcrever trecho {chunk_start:.1f}s-{actual_end:.1f}s ({e}). Marcando e seguindo em frente.")
+            entries = [(chunk_start, actual_end, "[trecho nao pode ser transcrito]")]
+
+        srt_index = write_srt_entries(srt_file, entries, srt_index)
+        chunk_start = actual_end
+        save_progress(progress_path, chunk_start, srt_index, fingerprint, params)
+
+        pct = 100 * chunk_start / duration
+        elapsed = time.time() - started_at
+        print(f"Progresso: {chunk_start:.1f}s / {duration:.1f}s ({pct:.1f}%) | tempo decorrido: {elapsed:.0f}s")
+
+    srt_file.close()
+    progress_path.unlink(missing_ok=True)
+    print(f"\nTranscricao concluida: {output_path}")
+
+
+if __name__ == "__main__":
+    main()

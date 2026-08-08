@@ -179,3 +179,28 @@ def transcribe_chunk(model, audio_array: np.ndarray, language: str | None, initi
         initial_prompt=initial_prompt,
     )
     return [(seg.start, seg.end, seg.text) for seg in segments]
+
+
+# ---------------------------------------------------------------------------
+# Escrita incremental do .srt
+# ---------------------------------------------------------------------------
+
+def format_srt_timestamp(total_seconds: float) -> str:
+    total_seconds = max(0.0, total_seconds)
+    ms = int(round(total_seconds * 1000))
+    h, ms = divmod(ms, 3600000)
+    m, ms = divmod(ms, 60000)
+    s, ms = divmod(ms, 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def write_srt_entries(srt_file, entries, start_index: int) -> int:
+    index = start_index
+    for start, end, text in entries:
+        text = text.strip()
+        if not text:
+            continue
+        srt_file.write(f"{index}\n{format_srt_timestamp(start)} --> {format_srt_timestamp(end)}\n{text}\n\n")
+        index += 1
+    srt_file.flush()
+    return index

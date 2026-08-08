@@ -204,3 +204,55 @@ def write_srt_entries(srt_file, entries, start_index: int) -> int:
         index += 1
     srt_file.flush()
     return index
+
+
+# ---------------------------------------------------------------------------
+# Progresso / retomada
+# ---------------------------------------------------------------------------
+
+def audio_fingerprint(audio_path: Path) -> str:
+    stat = audio_path.stat()
+    return f"{stat.st_mtime_ns}:{stat.st_size}"
+
+
+def params_fingerprint(args, device: str, compute_type: str, model_name: str) -> str:
+    """Usa o modelo/device/compute_type ja resolvidos (nao o '--model auto'
+    literal) para que uma troca no motor padrao (ex: engine.json atualizado
+    apos um `setup_env.py --force`) invalide corretamente um progresso salvo
+    com o motor antigo, em vez de tentar retomar misturando transcricoes de
+    modelos diferentes no mesmo .srt."""
+    return json.dumps(
+        {
+            "language": args.language,
+            "model": model_name,
+            "device": device,
+            "compute_type": compute_type,
+            "chunk_seconds": args.chunk_seconds,
+            "vocab": args.vocab,
+        },
+        sort_keys=True,
+    )
+
+
+def load_progress(progress_path: Path):
+    if not progress_path.exists():
+        return None
+    try:
+        return json.loads(progress_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def save_progress(progress_path: Path, next_chunk_start_s: float, next_srt_index: int, fingerprint: str, params: str):
+    progress_path.write_text(
+        json.dumps(
+            {
+                "audio_fingerprint": fingerprint,
+                "params": params,
+                "next_chunk_start_s": next_chunk_start_s,
+                "next_srt_index": next_srt_index,
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )

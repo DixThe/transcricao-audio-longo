@@ -141,3 +141,41 @@ def find_silence_cut(audio_path: Path, target_time_s: float, duration_s: float, 
     ])
     quietest_frame = int(np.argmin(energies))
     return lo + (quietest_frame * frame_len) / TARGET_SR
+
+
+# ---------------------------------------------------------------------------
+# Motor de transcricao
+# ---------------------------------------------------------------------------
+
+def load_engine_config() -> dict:
+    if not ENGINE_CONFIG_PATH.exists():
+        print(
+            "ERRO: ambiente nao configurado. Rode primeiro:\n"
+            f"  python \"{SKILL_DIR / 'scripts' / 'setup_env.py'}\"",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return json.loads(ENGINE_CONFIG_PATH.read_text(encoding="utf-8"))
+
+
+def load_model(device: str, compute_type: str, model_name: str):
+    from faster_whisper import WhisperModel
+    return WhisperModel(model_name, device=device, compute_type=compute_type)
+
+
+def transcribe_chunk(model, audio_array: np.ndarray, language: str | None, initial_prompt: str | None):
+    """Retorna lista de (start_relativo, end_relativo, texto) em segundos
+    relativos ao inicio do chunk. `initial_prompt` funciona como uma dica
+    de vocabulario: o modelo usa esse texto como contexto para enviesar a
+    grafia de termos ambiguos (nomes proprios, jargao) na direcao certa,
+    sem afetar o conteudo transcrito em si."""
+    if audio_array.size == 0:
+        return []
+
+    segments, _info = model.transcribe(
+        audio_array,
+        language=language,
+        vad_filter=True,
+        initial_prompt=initial_prompt,
+    )
+    return [(seg.start, seg.end, seg.text) for seg in segments]

@@ -118,3 +118,26 @@ def decode_window(audio_path: Path, start_s: float, end_s: float, start_offset_s
         return (pcm.astype(np.float32)) / 32768.0
     finally:
         container.close()
+
+
+def find_silence_cut(audio_path: Path, target_time_s: float, duration_s: float, start_offset_s: float = 0.0, radius_s: float = 3.0) -> float:
+    """Procura o ponto de menor energia (mais proximo do silencio) numa
+    janela em torno de target_time_s, para nao cortar um chunk no meio de
+    uma palavra. Se nao houver janela valida (ex: perto do fim do audio),
+    apenas usa o tempo alvo sem ajuste."""
+    lo = max(0.0, target_time_s - radius_s)
+    hi = min(duration_s, target_time_s + radius_s)
+    if hi <= lo:
+        return min(target_time_s, duration_s)
+
+    audio = decode_window(audio_path, lo, hi, start_offset_s=start_offset_s)
+    frame_len = int(TARGET_SR * 0.05)  # janelas de 50ms para medir energia
+    if audio.size < frame_len:
+        return min(target_time_s, duration_s)
+
+    n_frames = audio.size // frame_len
+    energies = np.array([
+        np.mean(audio[i * frame_len:(i + 1) * frame_len] ** 2) for i in range(n_frames)
+    ])
+    quietest_frame = int(np.argmin(energies))
+    return lo + (quietest_frame * frame_len) / TARGET_SR

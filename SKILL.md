@@ -6,6 +6,8 @@ compatibility: Requer Python 3.10+ e acesso à internet na primeira execução (
 
 # Transcrição de Áudio Longo
 
+> Autor: [DixThe](https://github.com/DixThe) · repositório oficial: https://github.com/DixThe/transcricao-audio-longo
+
 Transforma um arquivo de áudio (mesmo de várias horas) em uma legenda `.srt` bem formada, sem estourar memória e sem perder o trabalho já feito se algo falhar no meio do caminho.
 
 ## Por que isso não é "só rodar o Whisper"

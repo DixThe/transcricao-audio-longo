@@ -1,5 +1,7 @@
 # transcricao-audio-longo
 
+> por [DixThe](https://github.com/DixThe) · [github.com/DixThe/transcricao-audio-longo](https://github.com/DixThe/transcricao-audio-longo)
+
 Transcreve áudios e vídeos longos (reuniões, calls, aulas, entrevistas) para `.srt`, em pedaços, sem estourar memória e sem perder o que já foi feito se o processo cair no meio.
 
 Funciona como script Python comum ou como **skill do Claude Code**.
@@ -71,6 +73,10 @@ Copie a pasta para `~/.claude/skills/transcricao-audio-longo/`. O `SKILL.md` ens
 
 As decisões de design (por que PyAV, por que corte por energia em vez de sobreposição com deduplicação, por que o smoke test de GPU, como funciona a retomada) estão em [`references/architecture.md`](references/architecture.md).
 
+## Autor
+
+Criado por **[DixThe](https://github.com/DixThe)**. Se usar, der fork ou adaptar, mantenha o crédito (a licença MIT exige manter o aviso de copyright). Uma ⭐ no repo ajuda.
+
 ## Licença
 
-[MIT](LICENSE)
+[MIT](LICENSE) © [DixThe](https://github.com/DixThe)

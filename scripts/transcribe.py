@@ -38,6 +38,8 @@ ENGINE_CONFIG_PATH = SKILL_DIR / ".venv" / "engine.json"
 
 TARGET_SR = 16000
 
+AUTHOR_BANNER = "transcricao-audio-longo por DixThe | https://github.com/DixThe/transcricao-audio-longo"
+
 
 # ---------------------------------------------------------------------------
 # Decodificacao de audio (streaming, sem depender de ffmpeg do sistema)
@@ -281,6 +283,7 @@ def default_output_path(audio_path: Path, output_dir: str | None) -> Path:
 
 
 def main():
+    print(AUTHOR_BANNER)
     args = parse_args()
     audio_path = Path(args.audio).expanduser().resolve()
     if not audio_path.exists():

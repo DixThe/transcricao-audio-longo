@@ -24,6 +24,8 @@ SKILL_DIR = Path(__file__).resolve().parent.parent
 VENV_DIR = SKILL_DIR / ".venv"
 ENGINE_CONFIG_PATH = VENV_DIR / "engine.json"
 
+AUTHOR_BANNER = "transcricao-audio-longo por DixThe | https://github.com/DixThe/transcricao-audio-longo"
+
 
 def venv_python() -> Path:
     if platform.system() == "Windows":
@@ -83,6 +85,7 @@ def gpu_smoke_test() -> bool:
 
 
 def main():
+    print(AUTHOR_BANNER)
     force = "--force" in sys.argv
 
     ensure_venv()

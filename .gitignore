@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+
+# saídas e áudios de teste
+*.srt
+*.progress.json
+*.m4a
+*.mp3
+*.wav
+*.ogg
+*.mp4
+
+.env
